@@ -1,0 +1,1193 @@
+#include "delay.h"
+#include "sys.h"
+#include "oled.h"
+#include "bmp.h"
+#include "usart.h"	  
+//#include "spi.h"	 
+#include "bsp_i2c_ee.h"
+#include "led.h"
+#include "int_adc.h"
+#include "math.h"
+#include "stdlib.h"
+#include "eerom.h"
+#include "usart_4.h"	  
+#include "usart_5.h"	  
+#include "tim_3.h"	 
+#include "key.h"
+#include "exti.h"	 
+#include "exti_2.h"	
+//#include "exti_pa2.h"	  
+#include "exti_pa12.h"	 
+//#include "exti_pa1.h"	  
+
+typedef unsigned char	uchar;
+typedef unsigned int	uint;
+
+
+#define 	P_1     0x01
+#define 	P_2     0x02
+#define 	P_3     0x03
+#define 	P_4     0x04
+
+#define 	Usart_write     0x00
+#define 	Usart_read      0x01
+
+#define 	Usart_KEY         0x01
+#define 	Usart_RDAC_0      0x02
+#define 	Usart_RDAC_1      0x03
+
+
+
+#define e  2.718281828459
+const double Rp=10000.0;        //10K
+const double T2 = (273.15+25.0);//T2
+const double Bx = 3950.0;       //B
+const double Ka = 273.15;
+int T=0;
+
+#define  Yexian_Frame_header_1     0X54
+#define  Yexian_Frame_header_2     0X43
+#define  Yexian_Frame_tail         0X0D
+uint8_t  Yexian_i=0;//²¨Á£Êý¾Ý»º³åÇøÏÂ±ê
+uint8_t  Yexian_RECEIVE_DATA[36];
+uint16_t Yexian_RECEIVE_DATA_complete_flag,Yexian_Data_lenght,Yexian_equal_lenght;
+uint16_t Yexian_Receive_start_flag=0;
+uint16_t Yexian_Receive_data_error_flag;
+uint16_t Yexian_Master_addr_flag;
+
+#define  Yexian_LD_Frame_header_1     0X4C
+#define  Yexian_LD_Frame_header_2        0X44
+#define  Yexian_LD_Frame_tail            0X0D
+uint8_t  Yexian_LD_i=0;//²¨Á£Êý¾Ý»º³åÇøÏÂ±ê
+uint8_t  Yexian_LD_RECEIVE_DATA[36];
+uint16_t Yexian_LD_RECEIVE_DATA_complete_flag,Yexian_LD_Data_lenght;
+uint16_t Yexian_LD_Receive_start_flag=0;
+uint16_t Yexian_LD_Receive_data_error_flag;
+uint16_t Yexian_LD_Master_addr_flag;
+
+#define  Yexian_CMD_Frame_header_1     0X43
+#define  Yexian_CMD_Frame_header_2        0X4D
+#define  Yexian_CMD_Frame_tail            0X0D
+uint8_t  Yexian_CMD_i=0;//²¨Á£Êý¾Ý»º³åÇøÏÂ±ê
+uint8_t  Yexian_CMD_RECEIVE_DATA[36];
+uint16_t Yexian_CMD_RECEIVE_DATA_complete_flag,Yexian_CMD_Data_lenght;
+uint16_t Yexian_CMD_Receive_start_flag=0;
+uint16_t Yexian_CMD_Receive_data_error_flag;
+uint16_t Yexian_CMD_Master_addr_flag;
+
+
+	uint8_t  OPO_RECEIVE_DATA[36];
+	uint8_t  OPO_i=0;//OPOÊý¾Ý»º´æÇøÏÂ±ê
+	uint16_t OPO_Data_pakage_flag=0;
+	
+  uint8_t  U4_RECEIVE_DATA[36];
+	uint8_t  U4_i=0;//OPOÊý¾Ý»º´æÇøÏÂ±ê
+	uint16_t U4_Data_pakage_flag=0;
+  int      U4_error_flag=0;
+  int      U4_receive_flag=0;
+	
+	uint8_t  Upper_RECEIVE_DATA[36];
+	uint8_t  Upper_i=0;//OPOÊý¾Ý»º´æÇøÏÂ±ê
+	uint16_t Upper_Data_pakage_flag=0;
+	int RS485_Upper_error_flag=0;
+	int RS485_Upper_receive_flag=0;
+	int      Second_byte_flag=0;
+	
+	
+ static void Delay(__IO uint32_t nCount) ;
+ 
+  int coderH=0,coderL=0;
+  int current=0,Sen=0;
+  int Uart_count =0,Uart_sent_flag=0;
+	int temp_count =0,temp_ask_flag=0;
+	int LD_count =0,LD_ask_flag=0;
+	
+	
+	int Receive_temperature_H=0;
+	int Receive_temperature_L=0;
+	int Receive_temperature=0;
+	
+	int Uart4_count=0;
+	int Uart4_sent_flag=0;
+ 
+ 
+ int coder = 0;
+ 
+ int Potentiometer_coder=0;
+ 
+ int sram_flag = 0; 
+ int dir=1;
+ int change_flag=0;
+ int change_flag_count=0;
+ int  Clockwise=0;
+ int  Anticlockwise=0;
+ int Get_TEMP_flag=0;
+ int Sent_volt_flag=0,Sent_volt_count=0;
+ int Clean_zero_flag=0;
+ int Power_delay_count=0;
+ int Power_delay_flag=0;
+ int Sent_power_volt_flag=0;
+ int Power_12_drop_flag=0;
+ int Power_24_drop_flag=0;
+ int OC_drop_flag=0;
+ 
+  int RS485_error_flag=0;
+  int RS485_receive_flag=0;
+ 
+ 	int Sent_EMC_flag_1=0;
+	int First_Sent_EMC_flag_1=0;
+	int Sent_EMC_flag_0=0;
+	int First_Sent_EMC_flag_0=0;
+	
+	int Sent_PD_flag_1=0;
+	int First_Sent_PD_flag_1=0;
+	int Sent_PD_flag_0=0;
+	int First_Sent_PD_flag_0=0;
+	
+	int KEY_status_0=0;
+	int KEY_status_1=0;
+	
+	int KEY_1550_status_0=0;
+	int KEY_1550_status_1=0;
+
+	int KEY_780_status_0=0;
+	int KEY_780_status_1=0;
+	
+unsigned char power_display_ZERO[20]={0x5A,0xA5,0x08,0x82,0x00,0x10,0x30,0x30,0x2e,0x30,0x30};  // ÏÔÊ¾0Öµ
+unsigned char power2_arry[20]={0x5A,0xA5,0x05,0x82,0x00,0x10,0x00,0x00};  // ¹¦ÂÊ
+ 
+ unsigned char lcd_screen1[50]={0x5A,0xA5,0x15,0x82,0x00,0x30,0x52,0x65,0x61,0x64,0x79,0x20,0x20,0x20,0x20,0x20,0x20,0x20}; //ÔÚ0030µØÖ·ÏÔÊ¾  Ready
+ unsigned char lcd_screen2[50]={0x5A,0xA5,0x17,0x82,0x00,0x30,0x2D,0x20,0x2D,0x20,0x2D,0x20,0x2D,0x20,0x20,0x20,0x20,0x20}; // ÔÚ0030µØÖ·ÏÔÊ¾---- 
+ unsigned char lcd_screen_0n[20]={0x5A,0xA5,0x06,0x82,0x00,0x20,0x4F,0x4E,0x20}; //ÔÚ0020µØÖ·ÏÔÊ¾ ON
+ unsigned char lcd_screen_0ff[20]={0x5A,0xA5,0x06,0x82,0x00,0x20,0x4F,0x46,0x46};//ÔÚ0020µØÖ·ÏÔÊ¾ OFF
+ 
+ unsigned char temp_arry[20]={0x5A,0xA5,0x08,0x82,0x00,0x50};  //ÎÂ¶È
+ unsigned char temp2_arry[20]={0x5A,0xA5,0x05,0x82,0x00,0x50,0x03,0xe7};  //ÎÂ¶È
+ 
+ unsigned char Yexian_temp_arry[50]={0x54,0x43,0x31,0x3A,0x54,0x43,0x41,0x43,0x54,0x55,0x41,0x4C,0x54,0x45,0x4D,0x50,0x3F,0x0D};  //ÎÂ¶È²éÑ¯
+ unsigned char Yexian_open_current[50]={0x4C,0x44,0x31,0x3A,0x4C,0x44,0x53,0x57,0x3D,0x31,0x0D};  //µçÁ÷¿ªÆô
+ unsigned char Yexian_close_current[50]={0x4C,0x44,0x31,0x3A,0x4C,0x44,0x53,0x57,0x3D,0x30,0x0D};  //µçÁ÷¹Ø±Õ
+ unsigned char Yexian_ask_current[50]={0x4C,0x44,0x31,0x3A,0x4C,0x44,0x41,0x43,0x54,0x55,0x41,0x4C,0x43,0x55,0x52,0x52,0x45,0x4E,0x54,0x3F,0x0D};  //µçÁ÷²éÑ¯
+ unsigned char Yexian_set_current[50]={0x4C,0x44,0x31,0x3A,0x4C,0x44,0x41,0x44,0x4A,0x55,0x53,0x54,0x43,0x55,0x52,0x52,0x45,0x4E,0x54,0x3D};  //µçÁ÷ÉèÖÃ
+ unsigned char Yexian_zero_current[50]={0x4C,0x44,0x31,0x3A,0x4C,0x44,0x41,0x44,0x4A,0x55,0x53,0x54,0x43,0x55,0x52,0x52,0x45,0x4E,0x54,0x3D,0x30,0x2e,0x30,0x30,0x0d};  //µçÁ÷ÉèÖÃ 
+	
+ int  Sent_set_current_flag=0;	 
+	 
+	 int SW_flag=0;
+	 
+int main(void)
+{ 
+	double Temperature_1,Temperature1;
+	int Get_temp_data;
+	
+	int Get_temp_data_2;
+	double  RT_voltage_2=0;
+	double  LD_current_2=0;
+	double  Temperature2;
+	int Temperature_2_temp;
+	
+	double Temperature_0,Temperature0;
+	int Get_temp_data_0;
+	
+	int send_data;
+	unsigned char CH0_temp = 0;
+	int           CH0_voltage  = 0;
+
+	int send_data_1;
+	unsigned char CH1_temp = 0;
+	int           CH1_voltage  = 0;
+		
+	double  RT_voltage=0;
+	double  Rt_voltage_1 = 0; 
+	double 	Rt_current_1 = 0;
+	double 	Rt_1 = 0;
+	int Temperature_1_temp;
+	
+	double  RT_voltage_0=0;
+	double  Rt_voltage_0 = 0; 
+	double 	Rt_current_0 = 0;
+	double 	Rt_0 = 0;
+	int Temperature_0_temp;
+	
+	int   Iset = 0;
+	int   Actual_current=0;
+	int   Key_receive_flag=0;
+	
+	int Status_ON_i=0,Status_OFF_i=0;
+	
+	int Laser_1550_ON_i=0,Laser_1550_OFF_i=0;
+	int Power_1550_ON_i=0,Power_1550_OFF_i=0;
+	
+	int Laser_780_ON_i=0,Laser_780_OFF_i=0;
+	int Power_780_ON_i=0,Power_780_OFF_i=0;
+	
+  int Actual_temperature=0;
+	int P_read_flag=0;
+	
+	int Key_1550=0;
+	int Key_780=0;
+	
+	double Power_voltage=0;
+	int Get_temp_data_1;
+	double Temperature_3,Temperature3;
+	int Temperature_3_temp;
+	
+	int Set_Potentiometer_flag=0;
+	
+	int Sent_TEC_TEMP=0;
+	
+	int TEMP_protect=0;
+	int Sent_current=0;
+	
+	int Yexian_t;
+	int Yexian_x;
+	int Yexian_y;
+	int Status_i=0,Status_j=0;
+	int Laser_i=0,Laser_j;
+	int power_display_i=0;
+	int Yexian_open_i=0,Yexian_close_i=0;
+  int Yexian_set_i=0;
+	int flag_LDEN=0;
+	int  flag_lDEN_1=0;
+	int Yexian_zero_i=0;
+	
+  I2c2_init();
+	delay_init();
+	NVIC_Configuration();
+	Debug_USART_Config();
+  RS232_USART_Config();
+  RS485_USART_Config();
+  stm32_timer_init();
+	stm32_timer_enable();
+  EXTI_GPIO_Init();
+  EXTI_2_GPIO_Init();
+
+	EXTI_PA12_GPIO_Init();
+	KEY_Init();
+  LED_GPIO_Init();
+	
+ 	Adc_Init();		  		//ADC³õÊ¼»¯
+
+	
+//  MCO_GPIO_Config();
+	
+ // SPIx_Init();
+	  OLED_SPI_Init();
+		OLED_Init();
+	 	OLED_Clear()  	; 
+	 	OLED_Clear()  	; 
+	  OLED_Clear()  	; 
+
+// I2C_Writebye(0x09, 0x00);
+// delay_ms(200);
+
+ OLED_Clear();
+ 
+// RCC_MCOConfig(RCC_MCO_SYSCLK);
+ 
+	dac7678_init(); 
+	dac7678_write_value(CHA,0);//200¶ÔÓ¦200mV  1Í¨µÀ
+
+	
+			OLED_ShowString(23,0,"NPI LASERS");
+
+			OLED_ShowString(23,4,"PUMP-1560");
+
+			delay_ms(500);
+
+			OLED_Clear();
+
+			OLED_ShowString(23,0,"NPI LASERS");
+
+			OLED_ShowString(4,4,"initializing...");
+
+			delay_ms(500);
+
+			OLED_ShowString(4,4,"               ");
+
+	LT3083_OFF ;
+	
+//	Potentiometer_Writebye(0x00, 0x00);
+	
+	Potentiometer_Writebye(0x88, 0x00); //½«±£´æÔÚRDAC0µÄÊý¾Ý¶Á³öÀ´
+	delay_ms(50);
+//	Potentiometer_Writebye(Write_RDAC_1, 0x0D);
+	
+	/******³õÊ¼»¯ÇåÁã**********/
+	
+
+		
+	
+	while(1)
+	{
+		
+		POWER_ON;
+//		LT3083_ON;
+		
+	//ÏÔÊ¾ status µÄMODELOACK »ò----
+		if(Status==1)
+		{
+		for(Status_i=0;Status_i<25;Status_i++)
+		{Usart_SendByte(DEBUG_USART,lcd_screen1[Status_i]);}
+			delay_ms(5);
+			for(Status_i=0;Status_i<25;Status_i++)
+		{Usart_SendByte(DEBUG_USART,lcd_screen1[Status_i]);}
+		}
+			if(Status==0)
+		{
+		for(Status_j=0;Status_j<25;Status_j++)
+		{Usart_SendByte(DEBUG_USART,lcd_screen2[Status_j]);}
+			delay_ms(5);
+			for(Status_j=0;Status_j<25;Status_j++)
+		{Usart_SendByte(DEBUG_USART,lcd_screen2[Status_j]);}
+			
+		}
+		
+		//ÏÔÊ¾LAser µÄON
+		if((Status==1)&&(Laser==1))
+		{
+		for(Laser_i=0;Laser_i<9;Laser_i++)
+		{
+		   Usart_SendByte(DEBUG_USART,lcd_screen_0n[Laser_i]);
+		}
+	  delay_ms(5);
+		for(Laser_i=0;Laser_i<9;Laser_i++)
+			{
+		Usart_SendByte(DEBUG_USART,lcd_screen_0n[Laser_i]);
+			}
+			//¿ªÆôÒµÏÍÊ¹ÄÜ
+			if(flag_LDEN==0)
+				{
+			for(Yexian_open_i=0;Yexian_open_i<11;Yexian_open_i++)
+		{
+		 Usart_SendByte(UART4,Yexian_open_current[Yexian_open_i]);
+		}
+		delay_ms(10);
+		
+					for(Yexian_open_i=0;Yexian_open_i<11;Yexian_open_i++)
+		{
+		 Usart_SendByte(UART4,Yexian_open_current[Yexian_open_i]);
+		}
+			flag_LDEN=1;
+     }
+		}
+		//ÏÔÊ¾LAser µÄOFF	
+		if((Status==0)||(Laser==0))
+		{
+		 coder=0;
+		for(Laser_j=0;Laser_j<9;Laser_j++)
+		{
+		 Usart_SendByte(DEBUG_USART,lcd_screen_0ff[Laser_j]);
+		}
+	  delay_ms(5);
+		for(Laser_j=0;Laser_j<9;Laser_j++)
+		{
+		Usart_SendByte(DEBUG_USART,lcd_screen_0ff[Laser_j]);
+		}
+	  //ÏÔÊ¾ÇåÁã
+		for(power_display_i=0;power_display_i<11;power_display_i++)
+		{
+		 Usart_SendByte(DEBUG_USART,power_display_ZERO[power_display_i]);
+		}
+		//¹Ø±ÕÒµÏÍµçÁ÷Ê¹ÄÜ
+		if(flag_lDEN_1==0)
+		{
+			for(Yexian_close_i=0;Yexian_close_i<11;Yexian_close_i++)
+		{		
+			Usart_SendByte(UART4,Yexian_close_current[Yexian_close_i]); 
+		}		
+		 
+		 delay_ms(5);
+		
+			for(Yexian_zero_i=0;Yexian_zero_i<25;Yexian_zero_i++)
+		{		
+			Usart_SendByte(UART4,Yexian_zero_current[Yexian_zero_i]); 
+		}	
+		
+			flag_lDEN_1=1;
+		}
+			
+		if(flag_LDEN==1)
+			{
+			for(Yexian_close_i=0;Yexian_close_i<11;Yexian_close_i++)
+		{		
+			Usart_SendByte(UART4,Yexian_close_current[Yexian_close_i]); 
+		}
+		
+			 delay_ms(5);
+		
+			for(Yexian_zero_i=0;Yexian_zero_i<25;Yexian_zero_i++)
+		{		
+			Usart_SendByte(UART4,Yexian_zero_current[Yexian_zero_i]); 
+		}	
+		
+		flag_LDEN=0;
+		}
+	  
+			
+		}
+		
+		//²éÑ¯ÎÂ¶È	 
+		if(temp_ask_flag)
+		{
+		 for(Yexian_t=0;Yexian_t<18;Yexian_t++)
+		{
+		 Usart_SendByte(UART4,Yexian_temp_arry[Yexian_t]); 
+		}
+		temp_ask_flag=0;		
+	}
+		 
+
+		 if( Yexian_RECEIVE_DATA_complete_flag)
+	 { 	
+		 //·¢ËÍÎÂ¶ÈÎÂ¶Ètemp_arry[20]={0x5A,0xA5,0x08,0x82,0x00,0x50};  //ÎÂ¶È
+		 if(Yexian_RECEIVE_DATA[1] == Yexian_Frame_header_1)
+		{  
+		
+			Usart_SendByte(DEBUG_USART,0x5a); 
+			Usart_SendByte(DEBUG_USART,0xa5); 
+			Usart_SendByte(DEBUG_USART,Yexian_Data_lenght-Yexian_equal_lenght+2); 
+			Usart_SendByte(DEBUG_USART,0x82); 
+			Usart_SendByte(DEBUG_USART,0x00); 
+			Usart_SendByte(DEBUG_USART,0x50); 
+			
+		for(Yexian_x=Yexian_equal_lenght+1;Yexian_x<Yexian_Data_lenght;Yexian_x++)
+		{
+		 Usart_SendByte(DEBUG_USART,Yexian_RECEIVE_DATA[Yexian_x]); 
+		}
+	   }
+		
+		 	 delay_ms(10);
+		//·¢ËÍµçÁ÷
+		 if(Yexian_RECEIVE_DATA[1] == Yexian_LD_Frame_header_1)
+		{  
+			// unsigned char power1_arry[20]={0x5A,0xA5,0x05,0x82,0x00,0x10,};  // ¹¦ÂÊ
+			Usart_SendByte(DEBUG_USART,0x5a); 
+			Usart_SendByte(DEBUG_USART,0xa5); 
+			Usart_SendByte(DEBUG_USART,Yexian_Data_lenght-Yexian_equal_lenght+2); 
+			Usart_SendByte(DEBUG_USART,0x82); 
+			Usart_SendByte(DEBUG_USART,0x00); 
+			Usart_SendByte(DEBUG_USART,0x10); 
+		for(Yexian_y=Yexian_equal_lenght+1;Yexian_y<Yexian_Data_lenght;Yexian_y++)
+		{
+		 Usart_SendByte(DEBUG_USART,Yexian_RECEIVE_DATA[Yexian_y]); 
+		}
+	   }
+		
+		Yexian_equal_lenght=0;
+		Yexian_Data_lenght=0;
+	  Yexian_RECEIVE_DATA_complete_flag=0;
+	}
+		
+	/***********Ðý×ª±àÂëÆ÷µÄÉè¶¨*************************/
+	
+if(SW_flag==1)
+{ 
+	SW_flag=0;
+		P_read_flag=1;
+		 change_flag_count++;
+		 
+		 if(change_flag_count==1)
+		 {
+			 change_flag=0;
+		 }
+		 if(change_flag_count==2)
+		 {
+		  change_flag=1;
+			change_flag_count=0;
+		 }
+	 
+}	
+
+  if(Clockwise==1)
+	{  
+   Sent_set_current_flag=1;		
+		if(	change_flag==1)//1200¶ÔÓ¦12A£»500¶ÔÓ¦5A
+		 {    
+			if(coder < 850)///////
+						{
+				    coder = coder + 50;
+            }
+					}
+		  if(	change_flag==0)
+			{
+			 if(coder < 900)////
+						{
+				    coder = coder + 1;
+            }
+        }	
+		 Clockwise=0;
+	  }		 
+
+			
+  if(Anticlockwise==1) //Clockwise Anticlockwise
+		 { 
+			  Sent_set_current_flag=1;
+			 
+       	if(	change_flag==1)
+		 {    
+        if(coder > 49)
+				{
+          coder = coder - 50;
+        }
+			}
+		if(	change_flag==0)
+		 {    
+        if(coder > 0)
+				{
+          coder = coder - 1;
+        }
+			}
+		 
+			Anticlockwise=0;
+		}
+		 
+		if(coder>900)
+		{
+		coder=900;
+		}
+		 
+		 /***************¹â±êÏÔÊ¾**********************/
+		
+		   if( change_flag)
+	 {
+//	  OLED_ShowCHinese(0,3,7);//´Ö
+//		OLED_ShowCHinese(18,3,9);//µ÷
+//		OLED_ShowCHinese(36,3,12);//Öµ
+		  OLED_ShowString(68,3,"_");
+//		OLED_ShowString(98,3," ");
+	 }
+
+ if( change_flag==0)
+	 {
+//	  OLED_ShowCHinese(0,3,8);//Î¢
+//		OLED_ShowCHinese(18,3,9);//µ÷
+//		OLED_ShowCHinese(36,3,12);//Öµ
+//		OLED_ShowString(88,3," ");
+		OLED_ShowString(78,3,"_");
+	
+	 }
+	 /**************µçÁ÷Éè¶¨**********************/
+		 
+		 	 if((Status==1)&&(Laser==1))
+		{
+		 if(Sent_set_current_flag)
+		 {	
+			 //0x5A,0xA5,0x05,0x82,0x00,0x10,0x03,0xE8
+			 Usart_SendByte(DEBUG_USART,0x5a);
+			 Usart_SendByte(DEBUG_USART,0xa5);
+			 Usart_SendByte(DEBUG_USART,0x08);
+			 Usart_SendByte(DEBUG_USART,0x82);
+			 Usart_SendByte(DEBUG_USART,0x00);
+			 Usart_SendByte(DEBUG_USART,0x10);
+			 
+			Temperature1=coder;
+		
+			Temperature_1_temp = (int)Temperature1/1000;
+			
+			Usart_SendByte(DEBUG_USART,Temperature_1_temp+'0'); 
+
+			Temperature_1_temp = (int)Temperature1%1000/100;
+			Usart_SendByte(DEBUG_USART,Temperature_1_temp+'0');		
+		
+			Usart_SendByte(DEBUG_USART,0X2E); 
+		
+			Temperature_1_temp = ((int)Temperature1%1000%100)/10;
+			Usart_SendByte(DEBUG_USART,Temperature_1_temp+'0');
+		
+			Temperature_1_temp = ((int)Temperature1%1000%100)%10;
+			Usart_SendByte(DEBUG_USART,Temperature_1_temp+'0');	
+			
+			for(Yexian_set_i=0;Yexian_set_i<20;Yexian_set_i++)
+			{
+			Usart_SendByte(UART4,Yexian_set_current[Yexian_set_i]); 
+			}
+			Temperature1=coder;
+		
+			Temperature_1_temp = (int)Temperature1/1000;
+			
+			Usart_SendByte(UART4,Temperature_1_temp+'0'); 
+
+			Temperature_1_temp = (int)Temperature1%1000/100;
+			Usart_SendByte(UART4,Temperature_1_temp+'0');		
+		
+			Usart_SendByte(UART4,0X2E); 
+		
+			Temperature_1_temp = ((int)Temperature1%1000%100)/10;
+			Usart_SendByte(UART4,Temperature_1_temp+'0');
+		
+			Temperature_1_temp = ((int)Temperature1%1000%100)%10;
+			Usart_SendByte(UART4,Temperature_1_temp+'0');	
+			Usart_SendByte(UART4,0x0d);	
+			
+      Sent_set_current_flag=0;	
+			
+		 }
+	 }
+
+		
+
+//		Iset =(((float)coder)*5*0.8065+160.3)/10 ;//*1000;	  //ÉèÖÃµçÁ÷
+//			Iset =(((float)coder)*5)/10 ;//*1000;	  //ÉèÖÃµçÁ÷
+			
+//			Iset =((float)coder*0.0296+0.0114)*1000 ;//*1000;	  //ÉèÖÃµçÁ÷
+ 
+//         Iset =((float)coder*1.96+0.0475)*1 ; //*1000;	  //ÉèÖÃµçÁ÷
+ 
+//    Iset =((float)coder*6.54+0.0475)*1 ; //*1000;	  //ÉèÖÃµçÁ÷
+// 
+//  
+//		
+//		OLED_ShowNum(38,3,Iset/1000,1,16);
+//   
+//		OLED_ShowNum(48,3,Iset/100%10,1,16);
+//     OLED_ShowString(58,3,".");
+//	
+//		OLED_ShowNum(68,3,Iset%100/10,1,16);
+//		OLED_ShowNum(78,3,Iset%100%10%10,1,16);
+//		OLED_ShowString(88,3,"A");
+
+
+//	  ²É¼¯Í¨µÀÒ»µÄÎÂ¶È  ÎÂ¶È¼ì²â
+
+			Get_temp_data= ADC_Value[3];
+			RT_voltage=(double)Get_temp_data*3.3/4095; 
+			Rt_voltage_1 = (2.5-RT_voltage); //like this R=5000, T2=273.15+25,B=3470, RT=5000*EXP(3470*(1/T1-1/(273.15+25)), 
+			Rt_current_1 = (Rt_voltage_1)/10000.0;	
+			Rt_1 = RT_voltage/Rt_current_1;
+			Temperature_1 =Rt_1/Rp;
+			Temperature_1 = ((log10(Temperature_1))/(log10(e)));//ln(Rt/Rp)
+			Temperature_1/=Bx;//ln(Rt/Rp)/B
+			Temperature_1+=(1/T2);
+			Temperature_1 = 1/(Temperature_1);
+			Temperature_1-=Ka;
+			
+      if(Sent_TEC_TEMP)
+			{				
+
+			Temperature1=Temperature_1*100;
+			
+		  _485_TX_EN()	;//	Ê¹ÄÜ·¢ËÍÊý¾Ý 	
+			Delay(0x1FF);
+				
+			Usart_SendString( UART5, "tec temp:");
+			 while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+			Temperature_1_temp = (int)Temperature1/1000;
+			
+			Usart_SendByte(UART5,Temperature_1_temp+'0'); 
+			 while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+
+			Temperature_1_temp = (int)Temperature1%1000/100;
+			Usart_SendByte(UART5,Temperature_1_temp+'0');	
+			 while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+		
+			Usart_SendByte(UART5,0X2E); 
+			 while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+		
+			Temperature_1_temp = ((int)Temperature1%1000%100)/10;
+			Usart_SendByte(UART5,Temperature_1_temp+'0');
+			 while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+		
+			Temperature_1_temp = ((int)Temperature1%1000%100)%10;
+			Usart_SendByte(UART5,Temperature_1_temp+'0');	
+			 while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+			Usart_SendString( UART5, "\r\n\r\n");
+			 while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+			Delay(0x1FF);
+			_485_RX_EN()	;//	Ê¹ÄÜ½ÓÊÕÊý¾Ý
+		
+			
+	     Sent_TEC_TEMP=0;			 
+			 
+		 }
+	/***********·¢ËÍµ¥Ä£°åµçÁ÷Öµ********************/		
+		 if(Sent_current)
+		 {
+		  Get_temp_data_2= ADC_Value[2];
+			RT_voltage_2=(double)Get_temp_data_2*3.3/4095;  
+			LD_current_2=RT_voltage_2*0.1;    //µçÑ¹/20/²ÉÑùµç×è U/20/0.5;
+			
+			Temperature2=LD_current_2*1000;
+			 
+			_485_TX_EN()	;//	Ê¹ÄÜ·¢ËÍÊý¾Ý 	
+			Delay(0x1FF);
+			
+			Usart_SendString( UART5, "LD current:");
+			while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+			Temperature_2_temp = (int)Temperature2/1000;
+			
+			Usart_SendByte(UART5,Temperature_2_temp+'0'); 
+			while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+
+			Temperature_2_temp = (int)Temperature2%1000/100;
+			Usart_SendByte(UART5,Temperature_2_temp+'0');	
+      while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);			 
+		
+//			Usart_SendByte(UART5,0X2E); 
+		
+			Temperature_2_temp = ((int)Temperature2%1000%100)/10;
+			Usart_SendByte(UART5,Temperature_2_temp+'0');
+			while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+		
+			Temperature_2_temp = ((int)Temperature2%1000%100)%10;
+			Usart_SendByte(UART5,Temperature_2_temp+'0');	
+			while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+			Usart_SendString( UART5, "\r\n\r\n");
+			while (USART_GetFlagStatus(UART5, USART_FLAG_TXE) == RESET);
+			
+			Delay(0x1FF);
+			_485_RX_EN()	;//	Ê¹ÄÜ½ÓÊÕÊý¾Ý
+			 
+		 Sent_current=0;
+		 }
+		
+		 
+		 //Çý¶¯°åÎÂ¶È¼ì²â
+		 if((Temperature_0>=0)&&(Temperature_0<=85))
+		{
+			LED1_ON;
+		}	
+		 if((Temperature_0<0)||(Temperature_0>85))
+		 {
+		 LED1_OFF;
+//     Potentiometer_coder=0;
+		 }
+		 //TEC ÎÂ¶È¼ì²â
+	  if((Temperature_1>=0)&&(Temperature_1<=35))
+		{
+			if(TEMP_protect==0)
+			{
+			LED2_ON;
+			}
+		}	
+		 if((Temperature_1<0)||(Temperature_1>35))
+		 {
+			 
+			TEMP_protect=1;
+		  LED2_OFF;
+			//Potentiometer_Writebye(Write_RDAC_0, 0 );			
+//			Potentiometer_Writebye(Write_RDAC_EEMEM_0, 0 );
+//			delay_ms(30);	
+		/********¹Ø±ÕÒµÏÍÊ¹ÄÜ**********************/	 
+//			for(Yexian_close_i=0;Yexian_close_i<11;Yexian_close_i++)
+//		{		
+//			Usart_SendByte(UART4,Yexian_close_current[Yexian_close_i]); 
+//		}
+//			delay_ms(5);	
+//		/*********ÒµÏÍÇåÁã*******************/
+//					for(Yexian_zero_i=0;Yexian_zero_i<25;Yexian_zero_i++)
+//		{		
+//			Usart_SendByte(UART4,Yexian_zero_current[Yexian_zero_i]); 
+//		}	
+//			delay_ms(5);	
+//	  //ÏÔÊ¾ÇåÁã
+//		for(power_display_i=0;power_display_i<11;power_display_i++)
+//		{
+//		 Usart_SendByte(DEBUG_USART,power_display_ZERO[power_display_i]);
+//		}
+//		delay_ms(30);	
+//		LT3083_OFF;			
+		 }
+
+	//¼±Í£¼ì²â
+
+
+//  dac7678_write_value(CHA,coder);//200¶ÔÓ¦200mV  1Í¨µÀ
+
+/********************************************/
+	/*Ðý×ª±àÂëÆ÷µÄÉè¶¨*/
+//if(SW==0)
+//{    delay_ms(100);
+//	if(SW==0)
+//	{
+//		P_read_flag=1;
+//		 change_flag_count++;
+//		 
+//		 if(change_flag_count==1)
+//		 {
+//			 change_flag=0;
+//		 }
+//		 if(change_flag_count==2)
+//		 {
+//		  change_flag=1;
+//			change_flag_count=0;
+//		 }
+//	 }
+//}
+//  if(Clockwise==1)
+//	{ 
+//		Uart_sent_flag =1;
+//		if(	change_flag==1)//1200¶ÔÓ¦12A£»500¶ÔÓ¦5A
+//		 {    
+//			if(coder < 1150)
+//						{
+//				    coder = coder + 50;
+//            }
+//					}
+//		  if(	change_flag==0)
+//			{
+//			 if(coder < 1200)
+//						{
+//				    coder = coder + 5;
+//            }
+//        }	
+//		 Clockwise=0;
+//	  }		 
+
+//			
+//  if(Anticlockwise==1) //Clockwise Anticlockwise
+//		 {
+//			  Uart_sent_flag =1;
+//				if(	change_flag==1)
+//		 {    
+//        if(coder > 99)
+//				{
+//          coder = coder - 50;
+//        }
+//			}
+//		if(	change_flag==0)
+//		 {    
+//        if(coder > 4)
+//				{
+//          coder = coder - 5;
+//        }
+//			}
+//		 
+//			Anticlockwise=0;
+//		}
+//		 
+
+
+// 
+//   if( change_flag)
+//	 {
+////	  OLED_ShowCHinese(0,3,7);//´Ö
+////		OLED_ShowCHinese(18,3,9);//µ÷
+////		OLED_ShowCHinese(36,3,12);//Öµ
+//		  OLED_ShowString(68,3,"_");
+////		OLED_ShowString(98,3," ");
+//	 }
+
+// if( change_flag==0)
+//	 {
+////	  OLED_ShowCHinese(0,3,8);//Î¢
+////		OLED_ShowCHinese(18,3,9);//µ÷
+////		OLED_ShowCHinese(36,3,12);//Öµ
+////		OLED_ShowString(88,3," ");
+//		OLED_ShowString(78,3,"_");
+//	
+//	 }
+
+
+/******Éè¶¨µçÁ÷Öµ**/
+if(Set_Potentiometer_flag==1)
+{
+	Potentiometer_Writebye(Write_RDAC_0, Potentiometer_coder );
+	delay_ms(30);	
+	Potentiometer_Writebye(Write_RDAC_EEMEM_0, Potentiometer_coder );
+	delay_ms(30);	
+	Set_Potentiometer_flag=0;
+	
+}
+
+
+/********485½ÓÊÕµ½µÄÊý¾Ý************/
+if(OPO_Data_pakage_flag)
+{
+//	LED4_TOGGLE;
+ if(OPO_RECEIVE_DATA[2]==P_1)
+ {
+	  if(OPO_RECEIVE_DATA[4]==Usart_RDAC_0 )
+	 {
+		 Set_Potentiometer_flag=1;
+     Potentiometer_coder=OPO_RECEIVE_DATA[6];		
+	 }
+	 
+	 	  if(OPO_RECEIVE_DATA[4]==0X04 )
+	 {
+		 Sent_TEC_TEMP=1;
+
+	 }
+	 
+	 	 	  if(OPO_RECEIVE_DATA[4]==0X05 )
+	 {
+		 Sent_current=1;
+
+	 }
+	 
+ }
+
+ OPO_Data_pakage_flag=0;
+}
+
+ 
+}
+	}
+
+/***************UART4 ´®¿ÚÖÐ¶Ï ÓëÒµÏÍÍ¨Ñ¶***********************/
+	
+	void UART4_IRQHandler(void)                	//´®¿Ú4ÖÐ¶Ï·þÎñ³ÌÐò
+	{
+	if(USART_GetITStatus(UART4, USART_IT_RXNE) != RESET)  //½ÓÊÕÖÐ¶Ï(½ÓÊÕµ½µÄÊý¾Ý±ØÐëÊÇ0x0d 0x0a½áÎ²)
+		{	
+		 Yexian_i++;
+		 Yexian_i&=0XFF;
+		 USART_ClearITPendingBit(UART4,USART_IT_RXNE);
+		 Yexian_RECEIVE_DATA[Yexian_i]= USART_ReceiveData(UART4);
+			
+	 if(Yexian_Receive_start_flag==0)
+		{
+		if(Yexian_RECEIVE_DATA[Yexian_i] == Yexian_Frame_header_1)//||(Yexian_RECEIVE_DATA[Yexian_i] == Yexian_LD_Frame_header_1)||(Yexian_RECEIVE_DATA[Yexian_i] == Yexian_CMD_Frame_header_1))
+		{
+			Yexian_i=1;
+			Yexian_Receive_start_flag=1;
+		}
+		else
+   {
+			  Yexian_Receive_data_error_flag=1;
+	  }
+	  } 
+		
+		if((Yexian_i==2)&&( Yexian_Receive_start_flag==1))
+		{
+		if(Yexian_RECEIVE_DATA[2] == Yexian_Frame_header_2)//||(Yexian_RECEIVE_DATA[2] == Yexian_LD_Frame_header_2 )||(Yexian_RECEIVE_DATA[2] == Yexian_CMD_Frame_header_2 ))
+		{
+		  Yexian_Master_addr_flag=1; 
+		 }
+	  else
+		{
+			Yexian_Master_addr_flag=0; 
+			Yexian_Receive_data_error_flag=1;
+		}
+	  }
+		
+		if(Yexian_i>=3)//&&(Yexian_Master_addr_flag))
+		{ 
+		 if(Yexian_RECEIVE_DATA[Yexian_i] == 0x3D)
+		 {
+		   
+			 Yexian_equal_lenght=Yexian_i; 
+		 }	
+	 }
+		
+		if(Yexian_i>=4)//&&(Yexian_Master_addr_flag))
+		{ 
+		 if(Yexian_RECEIVE_DATA[Yexian_i] == Yexian_Frame_tail)
+		 {
+		   
+			 Yexian_Data_lenght=Yexian_i; 
+			 Yexian_RECEIVE_DATA_complete_flag=1;
+			 Yexian_i=0;
+			 Yexian_Receive_start_flag=0;
+			 return;
+		 }	
+	 }
+		
+	 if(Yexian_i>30)
+		{
+			 Yexian_RECEIVE_DATA_complete_flag=0;
+			 Yexian_Receive_data_error_flag=1;
+		}			
+  if(Yexian_Receive_data_error_flag)
+  {
+      Yexian_i=0; 
+		  Yexian_Receive_start_flag=0;
+		  Yexian_RECEIVE_DATA_complete_flag=0;
+			Yexian_Master_addr_flag=0;	
+	  	Yexian_Receive_data_error_flag=0;
+  }	
+  }
+
+} 
+
+
+
+//485´®¿ÚÖÐ¶Ï UART5£¬µ¥Ä£°åÓëÉÏÎ»»úÍ¨Ñ¶
+void UART5_IRQHandler(void)
+{  
+	  _485_RX_EN();	
+    if(USART_GetITStatus(UART5, USART_IT_RXNE) != RESET)
+     { 
+			OPO_i++;
+		  OPO_i&=0XFF;
+		 USART_ClearITPendingBit(UART5,USART_IT_RXNE);
+		 OPO_RECEIVE_DATA[OPO_i]= USART_ReceiveData( UART5 );
+			
+ if(RS485_receive_flag==0)		
+ {	 
+	  
+		if(OPO_RECEIVE_DATA[OPO_i]==0x55)	
+		{
+       OPO_i=1;
+       RS485_receive_flag=1;	
+		}
+		else
+		{
+		 RS485_error_flag=1;
+		}
+	}
+ 
+		if(OPO_i==7)
+		{		
+			if(OPO_RECEIVE_DATA[OPO_i]==0xAA)	
+		{		
+		RS485_receive_flag=0;	
+		OPO_Data_pakage_flag=1;	
+	
+    OPO_i=0;		
+		}
+	  else
+	  {
+	  RS485_error_flag=1;
+	  }
+	}	
+		
+		if(RS485_error_flag)
+		{
+			RS485_error_flag=0;
+			RS485_receive_flag=0;
+      OPO_i=0;
+			OPO_Data_pakage_flag=0;		
+    		
+			
+		}
+		
+	   }
+			 _485_RX_EN();
+//	   Delay(0xFF);	 
+ } 
+
+
+ static void Delay(__IO uint32_t nCount)	 //¼òµ¥µÄÑÓÊ±º¯Êý
+{
+	for(; nCount != 0; nCount--);
+}
+
+//¶¨Ê±Æ÷ÖÐ¶Ï
+void TIM3_IRQHandler(void) //1ms
+{
+	
+if (TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)
+{
+	
+	Uart_count++;
+	Sent_volt_count++;
+	Power_delay_count++;
+	Uart4_count++;
+	
+		LD_count++;
+	temp_count++;
+
+	
+ if(Uart_count>=1000)
+ {
+   Uart_count=0;
+	 Get_TEMP_flag=1;	 
+  } 
+ if(Sent_volt_count>=600)
+ {
+   Sent_volt_count=0;
+	 Sent_volt_flag=1;	 
+	 Sent_power_volt_flag=1;
+  }
+ // int Power_delay_count=0;
+ //int Power_delay_flag=0;
+	
+	 if(Power_delay_count>=60000)
+ {
+   Power_delay_count=0;
+	 Power_delay_flag =1;	 
+  }
+ 
+		 if(Uart4_count>=1000)
+ {
+   Uart4_count=0;
+	 Uart4_sent_flag=1;
+  }	
+
+ if(LD_count>=100)
+ {
+   LD_count=0;
+   LD_ask_flag=1;  
+  }  
+ 
+ if(temp_count >=500)
+ {
+   temp_count=0;
+   temp_ask_flag=1;  
+  }	
+		
+TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
+
+}
+}
+
+/*********************Ðý×ª±àÂëÆ÷µÄÖÐ¶Ï***********************/
+void EXTI9_5_IRQHandler(void)			//ÕâÀïÎª£ºEXTI15_10 (Íâ²¿ÖÐ¶ÏºÅµÄ10~15¶¼ÔÚÕâÀïÊµÏÖ£©
+{		
+	 if(EXTI_GetITStatus(EXTI_Line8) != RESET)	//ÕâÀïÎªÅÐ¶ÏÏàÓ¦µÄÖÐ¶ÏºÅÊÇ·ñ½øÈëÖÐ¶Ï£¬Èç¹ûÓÐ¶à¸öÖÐ¶ÏµÄ»°¡£
+   {
+		 EXTI_ClearITPendingBit(EXTI_Line8);		//ÇåÖÐ¶Ï
+//		 LED1_TOGGLE;
+		 if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_9) == 1)
+		 { 
+	    Clockwise=1;
+     }
+    if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_9) == 0)
+		 { 
+	    Anticlockwise=1;
+     }
+   }
+}
+////EXTI11_IRQn //EXTI12_IRQn drop24
+/*void EXTI15_10_IRQHandler(void)			//ÕâÀïÎª£ºEXTI3 (Íâ²¿ÖÐ¶ÏºÅµÄ10~15¶¼ÔÚÕâÀïÊµÏÖ£©
+{		
+	 if(EXTI_GetITStatus(EXTI_Line11) != RESET)	//ÕâÀïÎªÅÐ¶ÏÏàÓ¦µÄÖÐ¶ÏºÅÊÇ·ñ½øÈëÖÐ¶Ï£¬Èç¹ûÓÐ¶à¸öÖÐ¶ÏµÄ»°¡£
+   {
+		 
+		 EXTI_ClearITPendingBit(EXTI_Line11);		//ÇåÖÐ¶Ï
+		 Clean_zero_flag=1;
+	
+   }
+	 
+	 if(EXTI_GetITStatus(EXTI_Line12) != RESET)	//ÕâÀïÎªÅÐ¶ÏÏàÓ¦µÄÖÐ¶ÏºÅÊÇ·ñ½øÈëÖÐ¶Ï£¬Èç¹ûÓÐ¶à¸öÖÐ¶ÏµÄ»°¡£
+   {
+		 
+		EXTI_ClearITPendingBit(EXTI_Line12);		//ÇåÖÐ¶Ï
+    Power_24_drop_flag=1;
+
+		Usart_SendString( DEBUG_USART, "24V power drop");
+		Usart_SendByte( DEBUG_USART,'\r');    
+		Usart_SendByte( DEBUG_USART,'\n');
+	
+   }
+	 
+}*/
+
+////EXTI4_IRQn
+void EXTI3_IRQHandler(void)			//ÕâÀïÎª£ºEXTI3 (Íâ²¿ÖÐ¶ÏºÅµÄ10~15¶¼ÔÚÕâÀïÊµÏÖ£©
+{		
+	 if(EXTI_GetITStatus(EXTI_Line3) != RESET)	//ÕâÀïÎªÅÐ¶ÏÏàÓ¦µÄÖÐ¶ÏºÅÊÇ·ñ½øÈëÖÐ¶Ï£¬Èç¹ûÓÐ¶à¸öÖÐ¶ÏµÄ»°¡£
+   {
+//		  SW_flag=1;
+		 if(TouchOut2==0)
+		 {
+			 delay_ms(100);
+      if(TouchOut2==0)
+       {
+		  SW_flag=1;
+       }
+		 }
+		 
+
+		 EXTI_ClearITPendingBit(EXTI_Line3);		//ÇåÖÐ¶Ï
+		
+   }
+}
